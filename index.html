@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Four-Bar Linkage Simulator</title>
+<style>
+  :root {
+    --bg: #121826;
+    --panel: #171d2b;
+    --panel2: #1f2636;
+    --text: #edf2ff;
+    --muted: #9fb0d3;
+    --accent: #4f74b8;
+    --good: #58d19f;
+    --warn: #f0b35a;
+    --bad: #f26d7d;
+  }
+  * { box-sizing: border-box; user-select: none; }
+  body { margin: 0; height: 100vh; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; display: flex; overflow: hidden; }
+  #canvas-container { flex: 1; position: relative; height: 100%; }
+  canvas { width: 100%; height: 100%; display: block; cursor: grab; background: #1a2130; }
+  canvas:active { cursor: grabbing; }
+  
+  .controls { width: 360px; background: var(--panel); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; border-left: 1px solid #242d42; overflow-y: auto; }
+  .group { background: var(--panel2); padding: 12px; border-radius: 8px; border: 1px solid #2a3550; }
+  .group-title { font-weight: bold; margin-bottom: 8px; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  
+  label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; }
+  input[type="number"], select { width: 100%; background: #121826; border: 1px solid #35405c; color: #fff; padding: 6px; border-radius: 4px; box-sizing: border-box; font-size: 12px; }
+  input[type="range"] { width: 100%; margin-top: 4px; }
+  
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row { display: flex; gap: 6px; }
+  
+  button { flex: 1; padding: 8px; background: var(--accent); border: none; color: #fff; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; transition: background 0.2s; }
+  button:hover { background: #5b82cb; }
+  button.active { background: var(--warn); color: #121826; }
+  button.secondary { background: #2a3550; }
+  button.secondary:hover { background: #39476b; }
+  button.danger { background: var(--bad); }
+  button.danger:hover { background: #b85869; }
+  
+  .toggle-btn { background: #243147; border: 1px solid #35405c; color: #9fb0d3; padding: 3px 6px; font-size: 10px; border-radius: 4px; flex: 0; cursor: pointer; }
+  .toggle-btn:hover { background: #324361; }
+  .toggle-btn.off { color: #606b82; background: #171d2b; text-decoration: line-through; }
+  
+  .coupler-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .coupler-item { background: #121826; border: 1px solid #2a3550; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11px; }
+  
+  .badge { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #232c41; border: 1px solid #2f3a56; color: #cfe0ff; font-size: 11px; margin-right: 4px; }
+  .badge.good { background: #1d4734; border-color: #2f7f61; color: #58d19f; }
+  .badge.warn { background: #4a3818; border-color: #a17320; color: #f0b35a; }
+  .readouts { font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 3px; background: #121826; padding: 8px; border-radius: 6px; border: 1px solid #2a3550; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <canvas id="scene"></canvas>
+</div>
+
+<div class="controls">
+  <h3 style="margin: 0 0 4px 0;">Four-Bar Linkage</h3>
+
+  <!-- View Controls -->
+  <div class="group">
+    <div class="group-title">View</div>
+    <div class="row">
+      <button id="resetPanBtn" class="secondary">Reset Pan/Zoom</button>
+    </div>
+  </div>
+
+  <!-- Ground & Mechanism Setup -->
+  <div class="group">
+    <div class="group-title">Ground Setup</div>
+    <label>Ground Angle (θ1 deg)
+      <input type="number" id="groundAngle" value="0" step="1">
+    </label>
+  </div>
+
+  <!-- Link Dimensions -->
+  <div class="group">
+    <div class="group-title">Link Dimensions</div>
+    <div class="grid">
+      <div><label>L1 (Ground)</label><input type="number" id="l1Len" value="260" step="5"></div>
+      <div><label>L2 (Crank)</label><input type="number" id="l2Len" value="90" step="5"></div>
+    </div>
+    <div class="grid" style="margin-top:6px;">
+      <div><label>L3 (Coupler)</label><input type="number" id="l3Len" value="240" step="5"></div>
+      <div><label>L4 (Follower)</label><input type="number" id="l4Len" value="180" step="5"></div>
+    </div>
+  </div>
+
+  <!-- Coupler Points Panel -->
+  <div class="group">
+    <div class="group-title">Coupler Points (Max 5)</div>
+    <div class="row">
+      <button id="addCouplerBtn" class="secondary">+ Add Point</button>
+      <button id="clearCouplersBtn" class="danger">Clear All</button>
+    </div>
+    <div id="couplerContainer" class="coupler-list"></div>
+  </div>
+
+  <!-- Kinematics & Controls -->
+  <div class="group">
+    <div class="group-title">Kinematics</div>
+    <label><span id="driveLabel">Crank Angle (θ2 deg)</span>
+      <input type="range" id="inputAngle" min="0" max="360" value="45">
+    </label>
+    <div class="grid" style="margin-top: 6px;">
+      <div>
+        <label>Assembly Setup</label>
+        <select id="branchSelect">
+          <option value="1">Configuration 1</option>
+          <option value="2">Configuration 2</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:flex-end;">
+        <button id="togglePlay">Play Animation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Kinematic Data & Status -->
+  <div class="group">
+    <div class="group-title">Status & Measurements</div>
+    <div style="margin-bottom:8px;">
+      <span class="badge" id="typeBadge">Type: -</span>
+      <span class="badge" id="statusBadge">Status: OK</span>
+    </div>
+    <div class="readouts">
+      <div>Ground Angle (θ1): <span id="outGroundAng">0</span>°</div>
+      <div>Crank Angle (θ2): <span id="outCrankAng">0</span>°</div>
+      <div>Coupler Angle (θ3): <span id="outCouplerAng">0</span>°</div>
+      <div>Follower Angle (θ4): <span id="outFollowerAng">0</span>°</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+
+// UI Controls
+const groundAngleInput = document.getElementById('groundAngle');
+const l1LenInput = document.getElementById('l1Len');
+const l2LenInput = document.getElementById('l2Len');
+const l3LenInput = document.getElementById('l3Len');
+const l4LenInput = document.getElementById('l4Len');
+const inputAngleInput = document.getElementById('inputAngle');
+const branchSelect = document.getElementById('branchSelect');
+const togglePlayBtn = document.getElementById('togglePlay');
+const resetPanBtn = document.getElementById('resetPanBtn');
+const addCouplerBtn = document.getElementById('addCouplerBtn');
+const clearCouplersBtn = document.getElementById('clearCouplersBtn');
+const couplerContainer = document.getElementById('couplerContainer');
+
+// Status Readouts
+const typeBadge = document.getElementById('typeBadge');
+const statusBadge = document.getElementById('statusBadge');
+const outGroundAng = document.getElementById('outGroundAng');
+const outCrankAng = document.getElementById('outCrankAng');
+const outCouplerAng = document.getElementById('outCouplerAng');
+const outFollowerAng = document.getElementById('outFollowerAng');
+const driveLabel = document.getElementById('driveLabel');
+
+// State Variables
+let isPlaying = false;
+let animId = null;
+let panX = 0, panY = 0;
+let isPanning = false, startPanX = 0, startPanY = 0;
+let driveMode = 'crank';
+
+const getPointName = (idx) => String.fromCharCode(69 + idx); // E, F, G, H, I
+const couplerColors = ['#e74c3c', '#9b59b6', '#2ecc71', '#e67e22', '#1abc9c'];
+let couplerPoints = [
+  { dist: 120, angleDeg: 30, showPath: true }
+];
+
+function resize() {
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+  draw();
+}
+window.addEventListener('resize', resize);
+
+function circleIntersect(p1, r1, p2, r2) {
+  const dx = p2.x - p1.x, dy = p2.y - p1.y, d = Math.hypot(dx, dy);
+  const eps = 1e-4;
+  if (d > r1 + r2 + eps || d < Math.abs(r1 - r2) - eps || d < 1e-9) return null;
+  const cd = Math.max(Math.abs(r1 - r2), Math.min(r1 + r2, d));
+  const a = (r1 * r1 - r2 * r2 + cd * cd) / (2 * cd);
+  const h2 = r1 * r1 - a * a;
+  const h = h2 > 0 ? Math.sqrt(h2) : 0;
+  const mx = p1.x + a * dx / cd, my = p1.y + a * dy / cd;
+  const rx = -dy * h / cd, ry = dx * h / cd;
+  return [
+    { x: mx + rx, y: my + ry },
+    { x: mx - rx, y: my - ry }
+  ];
+}
+
+function solveFourBar(l1, l2, l3, l4, inputAngRad, branch, isCouplerDrive = false) {
+  const A = { x: 0, y: 0 };
+  const D = { x: l1, y: 0 };
+
+  if (!isCouplerDrive) {
+    const B = {
+      x: l2 * Math.cos(inputAngRad),
+      y: -l2 * Math.sin(inputAngRad)
+    };
+    const sols = circleIntersect(B, l3, D, l4);
+    if (!sols) return null;
+    const C = branch === '2' ? sols[1] : sols[0];
+    return { A, B, C, D };
+  } else {
+    const u = { x: Math.cos(inputAngRad), y: -Math.sin(inputAngRad) };
+    const shiftedCenter = { x: A.x + l3 * u.x, y: A.y + l3 * u.y };
+    const sols = circleIntersect(D, l4, shiftedCenter, l2);
+    if (!sols) return null;
+    const C = branch === '2' ? sols[1] : sols[0];
+    const B = { x: C.x - l3 * u.x, y: C.y - l3 * u.y };
+    return { A, B, C, D };
+  }
+}
+
+function checkGrashof(l1, l2, l3, l4) {
+  const links = [l1, l2, l3, l4].sort((a, b) => a - b);
+  const S = links[0], L = links[3], P = links[1], Q = links[2];
+  const isGrashof = S + L <= P + Q;
+
+  if (!isGrashof) return { type: 'Non-Grashof (Triple Rocker)', drive: 'crank' };
+  if (l2 === S) return { type: 'Grashof Crank-Rocker', drive: 'crank' };
+  if (l1 === S) return { type: 'Grashof Double Crank', drive: 'crank' };
+  if (l4 === S) return { type: 'Grashof Rocker-Crank', drive: 'crank' };
+  return { type: 'Grashof Double Rocker', drive: 'coupler' };
+}
+
+// Positive angle specifies anti-clockwise rotation relative to vector BC
+function getCouplerPointPos(B, C, dist, angleDeg) {
+  const dx = C.x - B.x, dy = C.y - B.y;
+  const theta3Rad = Math.atan2(-dy, dx);
+  const totalAngle = theta3Rad + (angleDeg * Math.PI / 180);
+  return {
+    x: B.x + dist * Math.cos(totalAngle),
+    y: B.y - dist * Math.sin(totalAngle)
+  };
+}
+
+function drawUnrotatedText(text, localX, localY, font, fillStyle, textAlign = 'center', textBaseline = 'alphabetic') {
+  const groundRad = (parseFloat(groundAngleInput.value) || 0) * Math.PI / 180;
+  ctx.save();
+  ctx.translate(localX, localY);
+  ctx.rotate(groundRad);
+  ctx.font = font;
+  ctx.fillStyle = fillStyle;
+  ctx.textAlign = textAlign;
+  ctx.textBaseline = textBaseline;
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+function renderCouplerControls() {
+  couplerContainer.innerHTML = '';
+  couplerPoints.forEach((cp, idx) => {
+    const name = getPointName(idx);
+    const div = document.createElement('div');
+    div.className = 'coupler-item';
+    div.innerHTML = `
+      <span style="color:${couplerColors[idx % couplerColors.length]}; font-weight:bold;">Pt ${name}</span>
+      <button class="toggle-btn ${cp.showPath ? '' : 'off'}" data-toggle="${idx}">${cp.showPath ? 'Path On' : 'Path Off'}</button>
+      <label style="margin:0;">Dist B: <input type="number" step="5" value="${cp.dist}" style="width:40px" data-idx="${idx}" data-param="dist"></label>
+      <label style="margin:0;">∠ Link: <input type="number" step="5" value="${cp.angleDeg}" style="width:40px" data-idx="${idx}" data-param="angleDeg">°</label>
+      <button class="danger" style="padding:2px 6px; flex:0;" data-del="${idx}">X</button>
+    `;
+    couplerContainer.appendChild(div);
+  });
+  addCouplerBtn.disabled = couplerPoints.length >= 5;
+}
+
+couplerContainer.addEventListener('input', (e) => {
+  const idx = e.target.getAttribute('data-idx');
+  const param = e.target.getAttribute('data-param');
+  if (idx !== null && param) {
+    couplerPoints[idx][param] = parseFloat(e.target.value) || 0;
+    draw();
+  }
+});
+
+couplerContainer.addEventListener('click', (e) => {
+  const delIdx = e.target.getAttribute('data-del');
+  const toggleIdx = e.target.getAttribute('data-toggle');
+
+  if (delIdx !== null) {
+    couplerPoints.splice(parseInt(delIdx), 1);
+    renderCouplerControls();
+    draw();
+  } else if (toggleIdx !== null) {
+    const i = parseInt(toggleIdx);
+    couplerPoints[i].showPath = !couplerPoints[i].showPath;
+    renderCouplerControls();
+    draw();
+  }
+});
+
+addCouplerBtn.addEventListener('click', () => {
+  if (couplerPoints.length < 5) {
+    couplerPoints.push({ dist: 100, angleDeg: 25 * couplerPoints.length, showPath: true });
+    renderCouplerControls();
+    draw();
+  }
+});
+
+clearCouplersBtn.addEventListener('click', () => {
+  couplerPoints = [];
+  renderCouplerControls();
+  draw();
+});
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const groundDeg = parseFloat(groundAngleInput.value) || 0;
+  const l1 = parseFloat(l1LenInput.value) || 0;
+  const l2 = parseFloat(l2LenInput.value) || 0;
+  const l3 = parseFloat(l3LenInput.value) || 0;
+  const l4 = parseFloat(l4LenInput.value) || 0;
+  const inputDeg = parseFloat(inputAngleInput.value) || 0;
+  const branch = branchSelect.value;
+
+  const grashof = checkGrashof(l1, l2, l3, l4);
+  typeBadge.textContent = 'Type: ' + grashof.type;
+  driveMode = grashof.drive;
+
+  if (driveMode === 'coupler') {
+    driveLabel.textContent = 'Coupler Angle (θ3 deg) - Drives System';
+  } else {
+    driveLabel.textContent = 'Crank Angle (θ2 deg)';
+  }
+
+  const groundRad = groundDeg * Math.PI / 180;
+  const inputRad = inputDeg * Math.PI / 180;
+
+  const sol = solveFourBar(l1, l2, l3, l4, inputRad, branch, driveMode === 'coupler');
+
+  if (!sol) {
+    statusBadge.textContent = 'Status: Disconnected';
+    statusBadge.className = 'badge warn';
+  } else {
+    statusBadge.textContent = 'Status: OK';
+    statusBadge.className = 'badge good';
+  }
+
+  // Calculate live kinematic angles
+  let cAng = 0, couAng = 0, fAng = 0;
+  if (sol) {
+    cAng = ((Math.atan2(-(sol.B.y - sol.A.y), sol.B.x - sol.A.x) * 180 / Math.PI + groundDeg) % 360 + 360) % 360;
+    couAng = ((Math.atan2(-(sol.C.y - sol.B.y), sol.C.x - sol.B.x) * 180 / Math.PI + groundDeg) % 360 + 360) % 360;
+    fAng = ((Math.atan2(-(sol.C.y - sol.D.y), sol.C.x - sol.D.x) * 180 / Math.PI + groundDeg) % 360 + 360) % 360;
+
+    outCrankAng.textContent = cAng.toFixed(1);
+    outCouplerAng.textContent = couAng.toFixed(1);
+    outFollowerAng.textContent = fAng.toFixed(1);
+  }
+  outGroundAng.textContent = groundDeg.toFixed(1);
+
+  const originX = canvas.width / 2 + panX - l1 / 2;
+  const originY = canvas.height / 2 + panY;
+
+  ctx.save();
+  ctx.translate(originX, originY);
+  ctx.rotate(-groundRad);
+
+  // 1. Draw Coupler Paths (Loci)
+  couplerPoints.forEach((cp, idx) => {
+    if (!cp.showPath) return;
+
+    ctx.beginPath();
+    ctx.strokeStyle = couplerColors[idx % couplerColors.length];
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+
+    let first = true;
+    for (let deg = 0; deg <= 360; deg += 2) {
+      const rad = deg * Math.PI / 180;
+      const stepSol = solveFourBar(l1, l2, l3, l4, rad, branch, driveMode === 'coupler');
+      if (stepSol) {
+        const pt = getCouplerPointPos(stepSol.B, stepSol.C, cp.dist, cp.angleDeg);
+        if (first) { ctx.moveTo(pt.x, pt.y); first = false; }
+        else { ctx.lineTo(pt.x, pt.y); }
+      }
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 2. L1 (Ground Link: A -> D)
+  ctx.strokeStyle = '#9fb0d3';
+  ctx.lineWidth = 5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(l1, 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Increased label font size (+50%): 13px -> 20px
+  drawUnrotatedText(`L1 (${groundDeg.toFixed(0)}°)`, l1 / 2, 28, '20px sans-serif', '#9fb0d3');
+
+  if (sol) {
+    const { A, B, C, D } = sol;
+
+    // 3. L2 (Crank Link: A -> B)
+    ctx.strokeStyle = '#f0b35a';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.stroke();
+    // Dynamically updating angle label, increased size: 13px -> 20px
+    drawUnrotatedText(`L2 (${cAng.toFixed(0)}°)`, B.x / 2 - 12, B.y / 2 - 12, 'bold 20px sans-serif', '#f0b35a');
+
+    // 4. L3 (Coupler Link: B -> C)
+    ctx.strokeStyle = '#4f74b8';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(B.x, B.y);
+    ctx.lineTo(C.x, C.y);
+    ctx.stroke();
+    // Dynamically updating angle label, increased size: 13px -> 20px
+    drawUnrotatedText(`L3 (${couAng.toFixed(0)}°)`, (B.x + C.x) / 2, (B.y + C.y) / 2 - 16, 'bold 20px sans-serif', '#6ea8ff');
+
+    // 5. L4 (Follower Link: D -> C)
+    ctx.strokeStyle = '#ffd54d';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(D.x, D.y);
+    ctx.lineTo(C.x, C.y);
+    ctx.stroke();
+    // Dynamically updating angle label, increased size: 13px -> 20px
+    drawUnrotatedText(`L4 (${fAng.toFixed(0)}°)`, (D.x + C.x) / 2 + 15, (D.y + C.y) / 2 + 15, 'bold 20px sans-serif', '#ffd54d');
+
+    // 6. Draw Active Coupler Points
+    couplerPoints.forEach((cp, idx) => {
+      const pt = getCouplerPointPos(B, C, cp.dist, cp.angleDeg);
+      const col = couplerColors[idx % couplerColors.length];
+      const ptName = getPointName(idx);
+
+      // Connector lines to form coupler triangle (B -> Pt -> C)
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(B.x, B.y);
+      ctx.lineTo(pt.x, pt.y);
+      ctx.lineTo(C.x, C.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Point Marker
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Increased label font size (+50%): 15px -> 23px
+      drawUnrotatedText(`${ptName}`, pt.x + 12, pt.y + 5, 'bold 23px sans-serif', col, 'left');
+    });
+
+    // Joint Pins A, B, C, D (Increased label font size (+50%): 16px -> 24px)
+    // Ground Pivot A
+    ctx.fillStyle = '#f26d7d';
+    ctx.beginPath(); ctx.arc(A.x, A.y, 8, 0, Math.PI * 2); ctx.fill();
+    drawUnrotatedText('A', A.x - 18, A.y + 24, 'bold 24px sans-serif', '#ffffff');
+
+    // Crank Pin B
+    ctx.fillStyle = '#edf2ff';
+    ctx.beginPath(); ctx.arc(B.x, B.y, 7, 0, Math.PI * 2); ctx.fill();
+    drawUnrotatedText('B', B.x - 16, B.y - 16, 'bold 24px sans-serif', '#edf2ff');
+
+    // Rocker Pin C
+    ctx.fillStyle = '#edf2ff';
+    ctx.beginPath(); ctx.arc(C.x, C.y, 7, 0, Math.PI * 2); ctx.fill();
+    drawUnrotatedText('C', C.x + 16, C.y - 16, 'bold 24px sans-serif', '#edf2ff');
+
+    // Ground Pivot D
+    ctx.fillStyle = '#f26d7d';
+    ctx.beginPath(); ctx.arc(D.x, D.y, 8, 0, Math.PI * 2); ctx.fill();
+    drawUnrotatedText('D', D.x + 18, D.y + 24, 'bold 24px sans-serif', '#ffffff');
+  }
+
+  ctx.restore();
+}
+
+// Interactivity Handlers
+canvas.addEventListener('mousedown', (e) => {
+  isPanning = true;
+  startPanX = e.clientX - panX;
+  startPanY = e.clientY - panY;
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (isPanning) {
+    panX = e.clientX - startPanX;
+    panY = e.clientY - startPanY;
+    draw();
+  }
+});
+
+window.addEventListener('mouseup', () => { isPanning = false; });
+
+resetPanBtn.addEventListener('click', () => {
+  panX = 0;
+  panY = 0;
+  draw();
+});
+
+function animate() {
+  if (!isPlaying) return;
+  let val = (parseFloat(inputAngleInput.value) + 1.5) % 360;
+  inputAngleInput.value = val;
+  draw();
+  animId = requestAnimationFrame(animate);
+}
+
+[groundAngleInput, l1LenInput, l2LenInput, l3LenInput, l4LenInput, inputAngleInput, branchSelect].forEach(input => {
+  input.addEventListener('input', draw);
+});
+
+togglePlayBtn.addEventListener('click', () => {
+  isPlaying = !isPlaying;
+  togglePlayBtn.textContent = isPlaying ? "Pause Animation" : "Play Animation";
+  togglePlayBtn.classList.toggle('active', isPlaying);
+  if (isPlaying) animate();
+  else cancelAnimationFrame(animId);
+});
+
+renderCouplerControls();
+resize();
+</script>
+</body>
+</html>
