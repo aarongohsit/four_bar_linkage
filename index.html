@@ -405,7 +405,7 @@ function draw() {
   ctx.stroke();
   ctx.setLineDash([]);
   // Increased label font size (+50%): 13px -> 20px
-  drawUnrotatedText(`L1 (${groundDeg.toFixed(0)}°)`, l1 / 2, 28, '20px sans-serif', '#9fb0d3');
+  drawUnrotatedText(`r1 (${groundDeg.toFixed(0)}°)`, l1 / 2, 28, '20px sans-serif', '#9fb0d3');
 
   if (sol) {
     const { A, B, C, D } = sol;
@@ -419,7 +419,7 @@ function draw() {
     ctx.lineTo(B.x, B.y);
     ctx.stroke();
     // Dynamically updating angle label, increased size: 13px -> 20px
-    drawUnrotatedText(`L2 (${cAng.toFixed(0)}°)`, B.x / 2 - 12, B.y / 2 - 12, 'bold 20px sans-serif', '#f0b35a');
+    drawUnrotatedText(`r2 (${cAng.toFixed(0)}°)`, B.x / 2 - 12, B.y / 2 - 12, 'bold 20px sans-serif', '#f0b35a');
 
     // 4. L3 (Coupler Link: B -> C)
     ctx.strokeStyle = '#4f74b8';
@@ -429,7 +429,7 @@ function draw() {
     ctx.lineTo(C.x, C.y);
     ctx.stroke();
     // Dynamically updating angle label, increased size: 13px -> 20px
-    drawUnrotatedText(`L3 (${couAng.toFixed(0)}°)`, (B.x + C.x) / 2, (B.y + C.y) / 2 - 16, 'bold 20px sans-serif', '#6ea8ff');
+    drawUnrotatedText(`r3 (${couAng.toFixed(0)}°)`, (B.x + C.x) / 2, (B.y + C.y) / 2 - 16, 'bold 20px sans-serif', '#6ea8ff');
 
     // 5. L4 (Follower Link: D -> C)
     ctx.strokeStyle = '#ffd54d';
@@ -439,7 +439,7 @@ function draw() {
     ctx.lineTo(C.x, C.y);
     ctx.stroke();
     // Dynamically updating angle label, increased size: 13px -> 20px
-    drawUnrotatedText(`L4 (${fAng.toFixed(0)}°)`, (D.x + C.x) / 2 + 15, (D.y + C.y) / 2 + 15, 'bold 20px sans-serif', '#ffd54d');
+    drawUnrotatedText(`r4 (${fAng.toFixed(0)}°)`, (D.x + C.x) / 2 + 15, (D.y + C.y) / 2 + 15, 'bold 20px sans-serif', '#ffd54d');
 
     // 6. Draw Active Coupler Points
     couplerPoints.forEach((cp, idx) => {
