@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Four-Bar Linkage Simulator</title>
+<title>Four-Bar Linkage Simulator with Image Overlay</title>
 <style>
   :root {
     --bg: #121826;
@@ -27,7 +27,7 @@
   .group-title { font-weight: bold; margin-bottom: 8px; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
   
   label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; }
-  input[type="number"], select { width: 100%; background: #121826; border: 1px solid #35405c; color: #fff; padding: 6px; border-radius: 4px; box-sizing: border-box; font-size: 12px; }
+  input[type="number"], select, input[type="file"] { width: 100%; background: #121826; border: 1px solid #35405c; color: #fff; padding: 6px; border-radius: 4px; box-sizing: border-box; font-size: 12px; }
   input[type="range"] { width: 100%; margin-top: 4px; }
   
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -68,6 +68,33 @@
     <div class="group-title">View</div>
     <div class="row">
       <button id="resetPanBtn" class="secondary">Reset Pan/Zoom</button>
+    </div>
+  </div>
+
+  <!-- Background / Reference Image -->
+  <div class="group">
+    <div class="group-title">Reference Image</div>
+    <label>Upload Image
+      <input type="file" id="imgUpload" accept="image/*">
+    </label>
+    <div style="margin-top:6px;">
+      <label>Placement Mode</label>
+      <select id="imgMode">
+        <option value="bg-world">Canvas Background (Pans with links)</option>
+        <option value="bg-screen">Canvas Background (Fixed Screen)</option>
+        <option value="side-right">Canvas Right Side</option>
+      </select>
+    </div>
+    <div class="grid" style="margin-top:6px;">
+      <div><label>Opacity</label><input type="range" id="imgOpacity" min="0.1" max="1" step="0.05" value="0.5"></div>
+      <div><label>Scale</label><input type="number" id="imgScale" value="1" step="0.1" min="0.1"></div>
+    </div>
+    <div class="grid" style="margin-top:6px;">
+      <div><label>Offset X</label><input type="number" id="imgOffsetX" value="0" step="10"></div>
+      <div><label>Offset Y</label><input type="number" id="imgOffsetY" value="0" step="10"></div>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button id="removeImgBtn" class="danger">Remove Image</button>
     </div>
   </div>
 
@@ -156,6 +183,17 @@ const addCouplerBtn = document.getElementById('addCouplerBtn');
 const clearCouplersBtn = document.getElementById('clearCouplersBtn');
 const couplerContainer = document.getElementById('couplerContainer');
 
+// Image Controls
+const imgUpload = document.getElementById('imgUpload');
+const imgMode = document.getElementById('imgMode');
+const imgOpacity = document.getElementById('imgOpacity');
+const imgScale = document.getElementById('imgScale');
+const imgOffsetX = document.getElementById('imgOffsetX');
+const imgOffsetY = document.getElementById('imgOffsetY');
+const removeImgBtn = document.getElementById('removeImgBtn');
+
+let bgImage = null;
+
 // Status Readouts
 const typeBadge = document.getElementById('typeBadge');
 const statusBadge = document.getElementById('statusBadge');
@@ -177,6 +215,30 @@ const couplerColors = ['#e74c3c', '#9b59b6', '#2ecc71', '#e67e22', '#1abc9c'];
 let couplerPoints = [
   { dist: 120, angleDeg: 30, showPath: true }
 ];
+
+// Image Loader Handling
+imgUpload.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      bgImage = new Image();
+      bgImage.onload = () => draw();
+      bgImage.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+removeImgBtn.addEventListener('click', () => {
+  bgImage = null;
+  imgUpload.value = '';
+  draw();
+});
+
+[imgMode, imgOpacity, imgScale, imgOffsetX, imgOffsetY].forEach(el => {
+  el.addEventListener('input', draw);
+});
 
 function resize() {
   canvas.width = canvas.parentElement.clientWidth;
@@ -237,7 +299,6 @@ function checkGrashof(l1, l2, l3, l4) {
   return { type: 'Grashof Double Rocker', drive: 'coupler' };
 }
 
-// Positive angle specifies anti-clockwise rotation relative to vector BC
 function getCouplerPointPos(B, C, dist, angleDeg) {
   const dx = C.x - B.x, dy = C.y - B.y;
   const theta3Rad = Math.atan2(-dy, dx);
@@ -312,7 +373,8 @@ addCouplerBtn.addEventListener('click', () => {
   }
 });
 
-clearCouplersBtn.addEventListener('click', () => {
+clearCouplerBtn = document.getElementById('clearCouplersBtn');
+clearCouplerBtn.addEventListener('click', () => {
   couplerPoints = [];
   renderCouplerControls();
   draw();
@@ -328,6 +390,49 @@ function draw() {
   const l4 = parseFloat(l4LenInput.value) || 0;
   const inputDeg = parseFloat(inputAngleInput.value) || 0;
   const branch = branchSelect.value;
+
+  const mode = imgMode.value;
+  const opacity = parseFloat(imgOpacity.value) || 0.5;
+  const scale = parseFloat(imgScale.value) || 1;
+  const offX = parseFloat(imgOffsetX.value) || 0;
+  const offY = parseFloat(imgOffsetY.value) || 0;
+
+  // --- 0. Render Image (Fixed Screen & Side Modes) ---
+  if (bgImage) {
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    const w = bgImage.width * scale;
+    const h = bgImage.height * scale;
+
+    if (mode === 'bg-screen') {
+      const x = (canvas.width - w) / 2 + offX;
+      const y = (canvas.height - h) / 2 + offY;
+      ctx.drawImage(bgImage, x, y, w, h);
+    } else if (mode === 'side-right') {
+      const panelWidth = Math.min(canvas.width * 0.4, w);
+      const aspect = bgImage.height / bgImage.width;
+      const drawW = panelWidth;
+      const drawH = panelWidth * aspect;
+      const x = canvas.width - drawW - 10 + offX;
+      const y = (canvas.height - drawH) / 2 + offY;
+      
+      // Draw background container panel on right side
+      ctx.fillStyle = '#121826';
+      ctx.globalAlpha = 0.8;
+      ctx.fillRect(canvas.width - drawW - 20, 0, drawW + 20, canvas.height);
+      ctx.globalAlpha = opacity;
+      ctx.drawImage(bgImage, x, y, drawW, drawH);
+
+      // Separator line
+      ctx.strokeStyle = '#35405c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width - drawW - 20, 0);
+      ctx.lineTo(canvas.width - drawW - 20, canvas.height);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   const grashof = checkGrashof(l1, l2, l3, l4);
   typeBadge.textContent = 'Type: ' + grashof.type;
@@ -372,6 +477,16 @@ function draw() {
   ctx.translate(originX, originY);
   ctx.rotate(-groundRad);
 
+  // --- 0b. World Space Image (Pans and rotates with the mechanism) ---
+  if (bgImage && mode === 'bg-world') {
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    const w = bgImage.width * scale;
+    const h = bgImage.height * scale;
+    ctx.drawImage(bgImage, -w / 2 + offX, -h / 2 + offY, w, h);
+    ctx.restore();
+  }
+
   // 1. Draw Coupler Paths (Loci)
   couplerPoints.forEach((cp, idx) => {
     if (!cp.showPath) return;
@@ -404,7 +519,6 @@ function draw() {
   ctx.lineTo(l1, 0);
   ctx.stroke();
   ctx.setLineDash([]);
-  // Increased label font size (+50%): 13px -> 20px
   drawUnrotatedText(`r1 (${groundDeg.toFixed(0)}°)`, l1 / 2, 28, '20px sans-serif', '#9fb0d3');
 
   if (sol) {
@@ -418,7 +532,6 @@ function draw() {
     ctx.moveTo(A.x, A.y);
     ctx.lineTo(B.x, B.y);
     ctx.stroke();
-    // Dynamically updating angle label, increased size: 13px -> 20px
     drawUnrotatedText(`r2 (${cAng.toFixed(0)}°)`, B.x / 2 - 12, B.y / 2 - 12, 'bold 20px sans-serif', '#f0b35a');
 
     // 4. L3 (Coupler Link: B -> C)
@@ -428,7 +541,6 @@ function draw() {
     ctx.moveTo(B.x, B.y);
     ctx.lineTo(C.x, C.y);
     ctx.stroke();
-    // Dynamically updating angle label, increased size: 13px -> 20px
     drawUnrotatedText(`r3 (${couAng.toFixed(0)}°)`, (B.x + C.x) / 2, (B.y + C.y) / 2 - 16, 'bold 20px sans-serif', '#6ea8ff');
 
     // 5. L4 (Follower Link: D -> C)
@@ -438,7 +550,6 @@ function draw() {
     ctx.moveTo(D.x, D.y);
     ctx.lineTo(C.x, C.y);
     ctx.stroke();
-    // Dynamically updating angle label, increased size: 13px -> 20px
     drawUnrotatedText(`r4 (${fAng.toFixed(0)}°)`, (D.x + C.x) / 2 + 15, (D.y + C.y) / 2 + 15, 'bold 20px sans-serif', '#ffd54d');
 
     // 6. Draw Active Coupler Points
@@ -447,7 +558,6 @@ function draw() {
       const col = couplerColors[idx % couplerColors.length];
       const ptName = getPointName(idx);
 
-      // Connector lines to form coupler triangle (B -> Pt -> C)
       ctx.strokeStyle = col;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
@@ -458,33 +568,27 @@ function draw() {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Point Marker
       ctx.fillStyle = col;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Increased label font size (+50%): 15px -> 23px
       drawUnrotatedText(`${ptName}`, pt.x + 12, pt.y + 5, 'bold 23px sans-serif', col, 'left');
     });
 
-    // Joint Pins A, B, C, D (Increased label font size (+50%): 16px -> 24px)
-    // Ground Pivot A
+    // Joint Pins A, B, C, D
     ctx.fillStyle = '#f26d7d';
     ctx.beginPath(); ctx.arc(A.x, A.y, 8, 0, Math.PI * 2); ctx.fill();
     drawUnrotatedText('A', A.x - 18, A.y + 24, 'bold 24px sans-serif', '#ffffff');
 
-    // Crank Pin B
     ctx.fillStyle = '#edf2ff';
     ctx.beginPath(); ctx.arc(B.x, B.y, 7, 0, Math.PI * 2); ctx.fill();
     drawUnrotatedText('B', B.x - 16, B.y - 16, 'bold 24px sans-serif', '#edf2ff');
 
-    // Rocker Pin C
     ctx.fillStyle = '#edf2ff';
     ctx.beginPath(); ctx.arc(C.x, C.y, 7, 0, Math.PI * 2); ctx.fill();
     drawUnrotatedText('C', C.x + 16, C.y - 16, 'bold 24px sans-serif', '#edf2ff');
 
-    // Ground Pivot D
     ctx.fillStyle = '#f26d7d';
     ctx.beginPath(); ctx.arc(D.x, D.y, 8, 0, Math.PI * 2); ctx.fill();
     drawUnrotatedText('D', D.x + 18, D.y + 24, 'bold 24px sans-serif', '#ffffff');
