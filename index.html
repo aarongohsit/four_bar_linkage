@@ -71,33 +71,6 @@
     </div>
   </div>
 
-  <!-- Background / Reference Image -->
-  <div class="group">
-    <div class="group-title">Reference Image</div>
-    <label>Upload Image
-      <input type="file" id="imgUpload" accept="image/*">
-    </label>
-    <div style="margin-top:6px;">
-      <label>Placement Mode</label>
-      <select id="imgMode">
-        <option value="bg-world">Canvas Background (Pans with links)</option>
-        <option value="bg-screen">Canvas Background (Fixed Screen)</option>
-        <option value="side-right">Canvas Right Side</option>
-      </select>
-    </div>
-    <div class="grid" style="margin-top:6px;">
-      <div><label>Opacity</label><input type="range" id="imgOpacity" min="0.1" max="1" step="0.05" value="0.5"></div>
-      <div><label>Scale</label><input type="number" id="imgScale" value="1" step="0.1" min="0.1"></div>
-    </div>
-    <div class="grid" style="margin-top:6px;">
-      <div><label>Offset X</label><input type="number" id="imgOffsetX" value="0" step="10"></div>
-      <div><label>Offset Y</label><input type="number" id="imgOffsetY" value="0" step="10"></div>
-    </div>
-    <div class="row" style="margin-top:8px;">
-      <button id="removeImgBtn" class="danger">Remove Image</button>
-    </div>
-  </div>
-
   <!-- Ground & Mechanism Setup -->
   <div class="group">
     <div class="group-title">Ground Setup</div>
@@ -161,6 +134,33 @@
       <div>Crank Angle (θ2): <span id="outCrankAng">0</span>°</div>
       <div>Coupler Angle (θ3): <span id="outCouplerAng">0</span>°</div>
       <div>Follower Angle (θ4): <span id="outFollowerAng">0</span>°</div>
+    </div>
+  </div>
+
+  <!-- Background / Reference Image -->
+  <div class="group">
+    <div class="group-title">Reference Image</div>
+    <label>Upload Image
+      <input type="file" id="imgUpload" accept="image/*">
+    </label>
+    <div style="margin-top:6px;">
+      <label>Placement Mode</label>
+      <select id="imgMode">
+        <option value="bg-world">Canvas Background (Pans with links)</option>
+        <option value="bg-screen">Canvas Background (Fixed Screen)</option>
+        <option value="side-right">Canvas Right Side</option>
+      </select>
+    </div>
+    <div class="grid" style="margin-top:6px;">
+      <div><label>Opacity</label><input type="range" id="imgOpacity" min="0.1" max="1" step="0.05" value="0.5"></div>
+      <div><label>Scale</label><input type="number" id="imgScale" value="1" step="0.1" min="0.1"></div>
+    </div>
+    <div class="grid" style="margin-top:6px;">
+      <div><label>Offset X</label><input type="number" id="imgOffsetX" value="0" step="10"></div>
+      <div><label>Offset Y</label><input type="number" id="imgOffsetY" value="0" step="10"></div>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button id="removeImgBtn" class="danger">Remove Image</button>
     </div>
   </div>
 </div>
@@ -373,8 +373,7 @@ addCouplerBtn.addEventListener('click', () => {
   }
 });
 
-clearCouplerBtn = document.getElementById('clearCouplersBtn');
-clearCouplerBtn.addEventListener('click', () => {
+clearCouplersBtn.addEventListener('click', () => {
   couplerPoints = [];
   renderCouplerControls();
   draw();
